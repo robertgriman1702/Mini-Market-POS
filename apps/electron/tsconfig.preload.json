@@ -1,0 +1,29 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": [
+      "ES2022",
+      "DOM"
+    ],
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "outDir": "./dist/preload",
+    "rootDir": "./src/preload",
+    "baseUrl": ".",
+    "paths": {
+      "@pos/shared": [
+        "../../packages/shared/dist/index"
+      ]
+    },
+    "ignoreDeprecations": "5.0"
+  },
+  "include": [
+    "src/preload"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "src/main"
+  ]
+}

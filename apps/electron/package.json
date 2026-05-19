@@ -1,0 +1,30 @@
+{
+  "name": "@pos/electron",
+  "version": "1.0.0",
+  "private": true,
+  "main": "dist/main/index.js",
+  "scripts": {
+    "dev": "npm run build && wait-on http://localhost:5173 && cross-env NODE_ENV=development electron .",
+    "dev:watch": "tsc -p tsconfig.main.json --watch --preserveWatchOutput",
+    "build": "npm run build:main && npm run build:preload",
+    "build:main": "tsc -p tsconfig.main.json",
+    "build:preload": "tsc -p tsconfig.preload.json",
+    "typecheck": "tsc --noEmit -p tsconfig.main.json && tsc --noEmit -p tsconfig.preload.json",
+    "dist": "npm run build && electron-builder --config electron-builder.yml"
+  },
+  "dependencies": {
+    "@pos/shared": "*",
+    "better-sqlite3": "^9.4.3",
+    "electron-updater": "^6.1.8"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.8",
+    "@types/node": "^20.12.7",
+    "cross-env": "^7.0.3",
+    "electron": "30.0.2",
+    "electron-builder": "^24.13.3",
+    "wait-on": "^7.2.0"
+  },
+  "description": "POS MiniMarket - Sistema de punto de venta local",
+  "author": "Robert Griman"
+}

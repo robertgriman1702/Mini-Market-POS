@@ -1,0 +1,42 @@
+appId: com.tuempresa.pos-minimarket
+productName: POS MiniMarket
+copyright: Copyright © 2024
+
+electronVersion: "30.0.2"
+
+directories:
+  output: release
+  buildResources: ../../assets
+
+files:
+  - dist/**/*
+  - "!**/*.map"
+
+publish:
+  provider: github
+  owner: TU_USUARIO_GITHUB      # ← cambia esto
+  repo: pos-minimarket-releases  # ← cambia esto
+  private: false
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: ../../assets/icon.ico
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+
+mac:
+  target:
+    - target: dmg
+      arch: [x64, arm64]
+  icon: ../../assets/icon.icns
+
+linux:
+  target:
+    - target: AppImage
+      arch: [x64]
+  icon: ../../assets/icon.png
