@@ -217,4 +217,5 @@ envuelve en `db.transaction()` porque necesita coordinar múltiples repositorios
 a la vez. Los repositorios individuales no saben que están en una transacción.
 #   M i n i m a r k e t  
  #   P O S - M I N I M A R K E T - R E L A S E S  
+ #   P O S - M I N I M A R K E T - R E L A S E S  
  
