@@ -1,6 +1,6 @@
 appId: com.tuempresa.pos-minimarket
 productName: POS MiniMarket
-copyright: Copyright © 2024
+copyright: Copyright © 2026
 
 electronVersion: "30.0.2"
 
@@ -14,8 +14,8 @@ files:
 
 publish:
   provider: github
-  owner: TU_USUARIO_GITHUB      # ← cambia esto
-  repo: pos-minimarket-releases  # ← cambia esto
+  owner: robertgriman1702     # ← cambia esto
+  repo: POS-MINIMARKET-RELASES  # ← cambia esto
   private: false
 
 win:

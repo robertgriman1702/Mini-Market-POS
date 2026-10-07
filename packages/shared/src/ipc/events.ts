@@ -1,4 +1,5 @@
-import type { Producto } from '../entities/Producto';
+import type { Producto }      from '../entities/Producto';
+import type { LicenseStatus } from '../entities/Config';
 
 // =============================================================================
 // IPCEvents — Eventos unidireccionales Main → Renderer
@@ -12,4 +13,9 @@ export interface IPCEvents {
   'updater:progress':    number;
   'updater:ready':       string;
   'bcv:tasa':            { tasa: number; actualizadoEl: string };
+
+  // Notifica al Renderer cuando el estado de licencia cambia en segundo
+  // plano (por ejemplo: una revalidación periódica detecta que la licencia
+  // fue revocada/suspendida/expiró mientras la app ya estaba abierta).
+  'license:status-changed': LicenseStatus;
 }

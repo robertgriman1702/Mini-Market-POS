@@ -3,7 +3,7 @@ import { useQuery, useIPCEvent }      from '@/hooks';
 import { Layout, type Page }          from '@/components/Layout';
 import { LockScreen }                 from '@/components/LockScreen';
 import { Login }                      from '@/pages/Login';
-import { POS }                        from '@/pages/POS';
+import { CajaModule } from './pages/CajaModule'; 
 import { Inventory }                  from '@/pages/Inventory';
 import { CashClose }                  from '@/pages/CashClose';
 import { Settings }                   from '@/pages/Settings';
@@ -108,7 +108,7 @@ export default function App() {
 
       <div className="flex-1 overflow-hidden">
         <Layout current={page} onChange={setPage} onLogout={handleLogout}>
-          {page === 'pos'        && <POS      config={config} />}
+          {page === 'pos' && <CajaModule config={config} />}
           {page === 'inventory'  && <Inventory config={config} />}
           {page === 'cash-close' && <CashClose config={config} />}
           {page === 'settings'   && <Settings  onConfigChange={setConfig} />}

@@ -51,14 +51,15 @@ export class VentaRepository implements IVentaRepository {
   create(data: VentaInsertPayload): Venta {
     const result = this.db
       .prepare(`
-        INSERT INTO ventas (total, descuento, metodo_pago, cajero_id)
-        VALUES (@total, @descuento, @metodo_pago, @cajero_id)
+        INSERT INTO ventas (total, descuento, metodo_pago, cajero_id, cliente_id)
+        VALUES (@total, @descuento, @metodo_pago, @cajero_id, @cliente_id)
       `)
       .run({
         total:       data.total,
         descuento:   data.descuento,
         metodo_pago: data.metodo_pago,
         cajero_id:   data.cajero_id,
+        cliente_id:  data.cliente_id,
       });
 
     return this.findById(result.lastInsertRowid as number)!;

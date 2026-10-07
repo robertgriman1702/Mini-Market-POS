@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { useMutation, useBcv }                              from '@/hooks';
+import { useMutation, useBcv }                      from '@/hooks';
 import { ipcInvoke }                                from '@/lib/ipc';
+import { ClienteSelector }                          from '@/components/ClienteSelector';
 import type { Producto, NuevaVentaPayload,
-              MetodoPago, AppConfig }               from '@pos/shared';
-import { BalanzaIndicator } from './Balanzaindicator';
+              MetodoPago, AppConfig, Cliente,
+              VentaSuspendida }                     from '@pos/shared';
 
 // =============================================================================
 // POS — Punto de venta
@@ -23,34 +24,74 @@ interface CartItem {
   cantidad: number;
 }
 
-interface Props { config: AppConfig }
+interface Props {
+  config: AppConfig;
+  clienteInicial?: Cliente | null;
+  ventaSuspendidaInicial?: VentaSuspendida | null;
+  onVolverCaja?: () => void;
+}
 
 const fmt$ = (centavos: number, moneda: string) =>
   `${moneda}${(centavos / 100).toFixed(2)}`;
+
+// Mismo valor por defecto que usa apps/electron/src/main/ipc/handlers/ventasSuspendidas.handler.ts
+// (no hay tabla de usuarios real; el login es un PIN único).
+const USUARIO_DEFECTO = 'cajero';
 
 // ---------------------------------------------------------------------------
 // Componente principal
 // ---------------------------------------------------------------------------
 
-export function POS({ config }: Props) {
+export function POS({
+  config,
+  clienteInicial = null,
+  ventaSuspendidaInicial = null,
+  onVolverCaja,
+}: Props) {
   const [cart,         setCart]         = useState<CartItem[]>([]);
   const [scan,         setScan]         = useState('');
   const [descuento,    setDescuento]    = useState(0);
   const [lastScan,     setLastScan]     = useState<string | null>(null);
   const [showCheckout, setShowCheckout] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
+  const [cliente,      setCliente]      = useState<Cliente | null>(null);
+  const [ventaSuspendidaId, setVentaSuspendidaId] = useState<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const { toBS, tasa } = useBcv();
 
 
-  const { mutate: crearVenta, isLoading: procesando } =
-    useMutation('ventas:crear', {
+  const { mutate: finalizarVentaSuspendida } =
+    useMutation('ventasSuspendidas:finalizar');
+
+  const { mutate: suspenderVenta, isLoading: suspendiendo } =
+    useMutation('ventasSuspendidas:crear', {
       onSuccess: () => {
         setCart([]);
         setScan('');
         setDescuento(0);
+        setCliente(null);
+        setVentaSuspendidaId(null);
+        setLastScan(null);
+        onVolverCaja?.();
+      },
+      onError: (err) => {
+        setLastScan(`Error al suspender: ${err}`);
+      },
+    });
+
+  const { mutate: crearVenta, isLoading: procesando } =
+    useMutation('ventas:crear', {
+      onSuccess: () => {
+        if (ventaSuspendidaId !== null) {
+          finalizarVentaSuspendida(ventaSuspendidaId);
+        }
+        setCart([]);
+        setScan('');
+        setDescuento(0);
+        setCliente(null);
         setShowCheckout(false);
         setLastScan(null);
+        setVentaSuspendidaId(null);
         setTimeout(() => inputRef.current?.focus(), 100);
       },
       onError: (err) => {
@@ -60,6 +101,32 @@ export function POS({ config }: Props) {
     });
 
   useEffect(() => { inputRef.current?.focus(); }, []);
+
+  useEffect(() => {
+    setCliente(clienteInicial);
+  }, [clienteInicial]);
+
+  useEffect(() => {
+    if (!ventaSuspendidaInicial) return;
+
+    setDescuento(ventaSuspendidaInicial.descuento);
+    setCliente(null);
+    setVentaSuspendidaId(ventaSuspendidaInicial.id);
+    setLastScan(`Venta suspendida #${ventaSuspendidaInicial.id} recuperada`);
+
+    Promise.all(
+      ventaSuspendidaInicial.items.map(async (item) => {
+        const producto = await ipcInvoke('productos:getById', item.producto_id);
+        return producto ? { producto, cantidad: item.cantidad } : null;
+      })
+    )
+      .then((items) => {
+        setCart(items.filter((item): item is CartItem => item !== null));
+      })
+      .catch(() => {
+        setLastScan('Error al recuperar la venta suspendida');
+      });
+  }, [ventaSuspendidaInicial]);
 
   // ── Totals ──
 
@@ -124,21 +191,46 @@ export function POS({ config }: Props) {
     );
 
   const clearCart = () => { if (cart.length > 0) setConfirmClear(true); };
-  const doClear   = () => { setCart([]); setDescuento(0); setConfirmClear(false); setLastScan(null); inputRef.current?.focus(); };
+  const doClear = () => {
+    setCart([]);
+    setDescuento(0);
+    setCliente(null);
+    setVentaSuspendidaId(null);
+    setConfirmClear(false);
+    setLastScan(null);
+    inputRef.current?.focus();
+  };
 
   // ── Confirmar venta ──
 
   const confirmar = (metodo: MetodoPago) => {
     if (!cart.length || procesando) return;
     crearVenta({
-      metodo_pago: metodo,
+      metodo_pago:  metodo,
       descuento,
+      cliente_id:   cliente?.id ?? null,
       items: cart.map((i) => ({
         producto_id:     i.producto.id,
         cantidad:        i.cantidad,
         precio_unitario: i.producto.precio,
       })),
     } as NuevaVentaPayload);
+  };
+
+  // ── Suspender venta ──
+
+  const handleSuspenderVenta = () => {
+    if (!cart.length || suspendiendo) return;
+    suspenderVenta({
+      cliente_id: cliente?.id ?? null,
+      items: cart.map((i) => ({
+        producto_id:     i.producto.id,
+        cantidad:        i.cantidad,
+        precio_unitario: i.producto.precio,
+      })),
+      descuento,
+      usuario: USUARIO_DEFECTO,
+    });
   };
 
   // ── Render ──
@@ -164,7 +256,6 @@ export function POS({ config }: Props) {
           disabled={procesando || showCheckout}
           autoFocus
         />
-        <BalanzaIndicator peso={null} conectada={false} />
         <div className="flex h-full items-center px-4 text-xs font-mono"
           style={{ borderLeft: '1px solid var(--border-dim)', color: 'var(--text-muted)' }}>
           <span><b>F4:</b> CLEAR &nbsp;·&nbsp; <b>↵:</b> COBRAR</span>
@@ -249,13 +340,12 @@ export function POS({ config }: Props) {
                 1 USD = Bs {tasa.toFixed(2)} · BCV
               </p>
             )}
-            {config.flags.mostrar_bs && !tasa && (
-              <p className="text-xs mt-1" style={{ color: 'var(--text-muted)', fontSize: '10px' }}>
-                Sin tasa BCV — verifica conexión
-              </p>
-            )}
           </div>
-          <div className="flex-1">
+          <div className="flex-1 overflow-y-auto">
+            {/* Cliente selector */}
+            <div className="px-3 pt-3">
+              <ClienteSelector cliente={cliente} onSelect={setCliente} />
+            </div>
             <div className="stat-row">
               <span className="stat-label">Subtotal</span>
               <span className="stat-value text-sm">{fmt$(subtotal, config.moneda)}</span>
@@ -282,6 +372,14 @@ export function POS({ config }: Props) {
               onClick={() => setShowCheckout(true)}>
               {procesando ? 'Procesando...' : `Cobrar · ${fmt$(total, config.moneda)}`}
             </button>
+            {onVolverCaja && (
+              <button className="btn-ghost" onClick={onVolverCaja} disabled={procesando}>
+                Volver a Caja
+              </button>
+            )}
+            <button className="btn-ghost" onClick={handleSuspenderVenta} disabled={!cart.length || suspendiendo}>
+              {suspendiendo ? 'Suspendiendo...' : 'Suspender Venta'}
+            </button>
             <button className="btn-ghost" onClick={clearCart} disabled={!cart.length}>
               Limpiar Carrito
             </button>
@@ -297,15 +395,14 @@ export function POS({ config }: Props) {
 
       {/* Modals */}
       {showCheckout && (
-      <CheckoutModal
-        total={total} subtotal={subtotal} ivaBase={ivaBase}
-        descuento={descuento} itemCount={itemCount} moneda={config.moneda}
-        ivaPorc={config.iva_porcentaje} showIva={config.flags.iva}
-        showCashea={false} procesando={procesando}
-        toBS={config.flags.mostrar_bs ? toBS : undefined} 
-        onConfirm={confirmar}
-        onClose={() => { setShowCheckout(false); inputRef.current?.focus(); }}
-      />
+        <CheckoutModal
+          total={total} subtotal={subtotal} ivaBase={ivaBase}
+          descuento={descuento} itemCount={itemCount} moneda={config.moneda}
+          ivaPorc={config.iva_porcentaje} showIva={config.flags.iva}
+          showCashea={false} procesando={procesando}
+          onConfirm={confirmar}
+          onClose={() => { setShowCheckout(false); inputRef.current?.focus(); }}
+        />
       )}
 
       {confirmClear && (
@@ -324,12 +421,10 @@ export function POS({ config }: Props) {
 // CheckoutModal
 // =============================================================================
 
-{/* En CheckoutProps agregar: */}
 interface CheckoutProps {
   total: number; subtotal: number; ivaBase: number; descuento: number;
   itemCount: number; moneda: string; ivaPorc: number; showIva: boolean;
   showCashea: boolean; procesando: boolean;
-  toBS?: (c: number) => string;   // ← agregar
   onConfirm: (metodo: MetodoPago) => void;
   onClose: () => void;
 }
@@ -342,7 +437,7 @@ const METODOS_CONFIG: Array<{ key: MetodoPago; label: string; icon: string; desc
 ];
 
 function CheckoutModal({ total, subtotal, ivaBase, descuento, itemCount,
-  moneda, ivaPorc, showIva, showCashea, procesando, toBS, onConfirm, onClose }: CheckoutProps) {
+  moneda, ivaPorc, showIva, showCashea, procesando, onConfirm, onClose }: CheckoutProps) {
 
   const [metodo,   setMetodo]   = useState<MetodoPago>('efectivo');
   const [recibido, setRecibido] = useState('');
@@ -401,12 +496,6 @@ function CheckoutModal({ total, subtotal, ivaBase, descuento, itemCount,
             color: 'var(--green)', lineHeight: 1, letterSpacing: '-0.02em' }}>
             {fmt$(total, moneda)}
           </div>
-          {toBS && (
-            <p className="font-mono text-sm mt-1" style={{ color: 'var(--warn)' }}>
-              ≈ {toBS(total)}
-            </p>
-          )}
-
           <div className="flex gap-4 mt-2 text-xs" style={{ color: 'var(--text-muted)' }}>
             <span>Subtotal: {fmt$(subtotal, moneda)}</span>
             {showIva && <span>IVA {ivaPorc}%: {fmt$(ivaBase, moneda)}</span>}

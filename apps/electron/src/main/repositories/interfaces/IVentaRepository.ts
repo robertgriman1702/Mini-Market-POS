@@ -7,6 +7,7 @@ export interface VentaInsertPayload {
   descuento:   number;
   metodo_pago: string;
   cajero_id:   number | null;
+  cliente_id:  number | null;
   items: Array<{
     producto_id:     number;
     cantidad:        number;
@@ -32,4 +33,10 @@ export interface IVentaRepository
 
   /** Retorna los items de una venta específica */
   findItems(ventaId: number): ItemVenta[];
+
+  /** Inserta un item de venta asociado a una venta ya creada */
+  insertItem(
+    ventaId: number,
+    item: { producto_id: number; cantidad: number; precio_unitario: number }
+  ): void;
 }

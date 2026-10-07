@@ -14,10 +14,12 @@ export function Settings({ onConfigChange }: Props) {
   const [section, setSection]   = useState<Section>('local');
   const [form,    setForm]      = useState<Partial<AppConfig> | null>(null);
   const [saved,   setSaved]     = useState(false);
+  const [claveLicencia, setClaveLicencia] = useState('');
+  const [licenciaError, setLicenciaError] = useState('');
 
-  const { data: config, refetch } = useQuery('config:get');
-  const { data: hwid }            = useQuery('system:getHwid');
-  const { data: license }         = useQuery('system:checkLicense');
+  const { data: config, refetch }              = useQuery('config:get');
+  const { data: hwid, refetch: refetchHwid }    = useQuery('system:getHwid');
+  const { data: license, refetch: refetchLicense } = useQuery('system:checkLicense');
 
   const { mutate: saveConfig, isLoading } = useMutation('config:save', {
     onSuccess: (updated) => {
@@ -30,6 +32,25 @@ export function Settings({ onConfigChange }: Props) {
 
   const { mutate: testPrinter, isLoading: testingPrinter } =
     useMutation('printer:test');
+
+  const { mutate: activarLicencia, isLoading: activando } =
+    useMutation('system:activateLicense', {
+      onSuccess: () => {
+        setClaveLicencia('');
+        setLicenciaError('');
+        refetchLicense();
+        refetchHwid();
+      },
+      onError: (err) => setLicenciaError(err),
+    });
+
+  const { mutate: revalidarLicencia, isLoading: revalidando } =
+    useMutation('system:refreshLicense', {
+      onSuccess: () => {
+        refetchLicense();
+        refetchHwid();
+      },
+    });
 
   useEffect(() => {
     if (config) setForm(config);
@@ -178,17 +199,55 @@ export function Settings({ onConfigChange }: Props) {
         {section === 'licencia' && (
           <>
             <SectionTitle>Información de Licencia</SectionTitle>
+
+            <LicenseStatusBanner estado={license?.estado} />
+
             <div
               className="p-4 flex flex-col gap-3"
               style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-dim)' }}
             >
               <InfoRow label="Device ID" value={hwid ?? '...'} mono />
-              <InfoRow label="Estado" value={license?.estado === 'valid' ? '✓ Válida' : '✕ ' + (license?.estado ?? '...')} />
+              <InfoRow label="Estado" value={describirEstadoLicencia(license?.estado)} />
               <InfoRow label="Cliente" value={license?.cliente ?? '—'} />
               <InfoRow label="Expira" value={license?.expira_at
                 ? new Date(license.expira_at).toLocaleDateString('es')
                 : 'Permanente'
               } />
+            </div>
+
+            <Field label="Activar / Reemplazar Licencia">
+              <textarea
+                className="input-base text-xs font-mono"
+                placeholder="Pega aquí el contenido de tu licencia..."
+                value={claveLicencia}
+                onChange={(e) => { setClaveLicencia(e.target.value); setLicenciaError(''); }}
+                rows={4}
+                style={{ resize: 'none' }}
+                data-selectable
+              />
+            </Field>
+
+            {licenciaError && (
+              <p className="text-xs animate-fade-in" style={{ color: 'var(--danger)' }}>
+                ✕ {licenciaError}
+              </p>
+            )}
+
+            <div className="flex gap-2">
+              <button
+                className="btn-primary flex-1"
+                disabled={activando || !claveLicencia.trim()}
+                onClick={() => activarLicencia(claveLicencia.trim())}
+              >
+                {activando ? 'Activando...' : 'Activar Licencia'}
+              </button>
+              <button
+                className="btn-ghost flex-1"
+                disabled={revalidando}
+                onClick={() => revalidarLicencia()}
+              >
+                {revalidando ? 'Revalidando...' : 'Revalidar Ahora'}
+              </button>
             </div>
           </>
         )}
@@ -262,5 +321,71 @@ function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) =>
         }}
       />
     </button>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Licencia — manejo visual explícito de los 7 estados posibles
+// ---------------------------------------------------------------------------
+
+type LicenseEstadoVisual = 'valid' | 'invalid' | 'expired' | 'revoked' | 'suspended' | 'grace_period' | 'not_found';
+
+function describirEstadoLicencia(estado: string | undefined): string {
+  switch (estado as LicenseEstadoVisual | undefined) {
+    case 'valid':        return '✓ Válida';
+    case 'grace_period': return '⏳ Período de gracia (sin conexión reciente)';
+    case 'invalid':      return '✕ Inválida';
+    case 'expired':      return '✕ Expirada';
+    case 'revoked':      return '✕ Revocada';
+    case 'suspended':    return '✕ Suspendida';
+    case 'not_found':    return '— No activada';
+    default:             return '...';
+  }
+}
+
+function LicenseStatusBanner({ estado }: { estado: string | undefined }) {
+  if (!estado) return null;
+
+  const config: Record<LicenseEstadoVisual, { texto: string; bg: string; border: string; color: string }> = {
+    valid: {
+      texto:  'Licencia activa y vigente.',
+      bg:     'var(--green-light)', border: 'var(--green-border)', color: 'var(--green)',
+    },
+    grace_period: {
+      texto:  'Operando en período de gracia sin contacto con el servidor. Conéctate a internet pronto para revalidar.',
+      bg:     'rgba(234,179,8,0.08)', border: 'rgba(234,179,8,0.25)', color: 'var(--warn)',
+    },
+    not_found: {
+      texto:  'No hay ninguna licencia activada en este equipo. Pega tu licencia abajo para activarla.',
+      bg:     'var(--bg-elevated)', border: 'var(--border-loud)', color: 'var(--text-muted)',
+    },
+    invalid: {
+      texto:  'La licencia no es válida para este equipo (HWID o firma no coinciden).',
+      bg:     'rgba(244,67,54,0.08)', border: 'rgba(244,67,54,0.2)', color: 'var(--danger)',
+    },
+    expired: {
+      texto:  'La licencia expiró. Renueva tu licencia para continuar usando el sistema sin interrupciones.',
+      bg:     'rgba(244,67,54,0.08)', border: 'rgba(244,67,54,0.2)', color: 'var(--danger)',
+    },
+    revoked: {
+      texto:  'Esta licencia fue revocada. Contacta a tu proveedor para más información.',
+      bg:     'rgba(244,67,54,0.08)', border: 'rgba(244,67,54,0.2)', color: 'var(--danger)',
+    },
+    suspended: {
+      texto:  'Esta licencia está temporalmente suspendida. Contacta a tu proveedor.',
+      bg:     'rgba(244,67,54,0.08)', border: 'rgba(244,67,54,0.2)', color: 'var(--danger)',
+    },
+  };
+
+  const c = config[estado as LicenseEstadoVisual];
+  if (!c) return null;
+
+  return (
+    <div
+      className="p-3 text-xs animate-fade-in"
+      style={{ background: c.bg, border: `1px solid ${c.border}`, color: c.color }}
+    >
+      {c.texto}
+    </div>
   );
 }

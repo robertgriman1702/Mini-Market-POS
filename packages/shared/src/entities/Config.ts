@@ -41,9 +41,26 @@ export const DEFAULT_CONFIG: AppConfig = {
 
 // =============================================================================
 // ENTIDAD: Licencia / HWID
+//
+// Estados:
+//   - 'not_found'    : no existe ninguna licencia/token local (estado original)
+//   - 'valid'         : licencia vigente, verificada localmente o contra el backend
+//   - 'invalid'       : firma o HWID no coinciden
+//   - 'expired'       : la licencia superó su fecha de expiración definitiva
+//   - 'revoked'       : el backend marcó la licencia como revocada
+//   - 'suspended'     : el backend marcó la licencia como temporalmente suspendida
+//   - 'grace_period'  : sin contacto reciente con el backend, operando con el
+//                        token offline dentro de su ventana de tolerancia
 // =============================================================================
 
-export type LicenseEstado = 'valid' | 'invalid' | 'expired' | 'not_found';
+export type LicenseEstado =
+  | 'not_found'
+  | 'valid'
+  | 'invalid'
+  | 'expired'
+  | 'revoked'
+  | 'suspended'
+  | 'grace_period';
 
 export interface LicenseStatus {
   estado:     LicenseEstado;

@@ -41,6 +41,7 @@ const INVOKE_WHITELIST = new Set<keyof IPCChannels>([
   'system:getHwid',
   'system:checkLicense',
   'system:activateLicense',
+  'system:refreshLicense',
 
   // Config
   'config:get',
@@ -54,7 +55,31 @@ const INVOKE_WHITELIST = new Set<keyof IPCChannels>([
   'reportes:cierreCaja',
   'system:downloadUpdate',
   'system:installUpdate',
+  'clientes:buscarPorCedula',
+  'clientes:getByCedula',
+  'clientes:buscar',
+  'clientes:registrar',
+  'clientes:actualizar',
+  'clientes:getAll',
   'bcv:getTasa',
+  'clientes:create',
+  'clientes:update',
+  'clientes:getRecientes',
+
+  // Apertura / Sesión de Caja
+  'cajaSesion:getAperturaDelDia',
+  'cajaSesion:abrir',
+
+  // Ventas Suspendidas
+  'ventasSuspendidas:crear',
+  'ventasSuspendidas:listar',
+  'ventasSuspendidas:getById',
+  'ventasSuspendidas:eliminar',
+  'ventasSuspendidas:recuperar',
+  'ventasSuspendidas:finalizar',
+
+  // Bitácora de Caja
+  'bitacoraCaja:listar',
 ]);
 
 const EVENTS_WHITELIST = new Set<keyof IPCEvents>([

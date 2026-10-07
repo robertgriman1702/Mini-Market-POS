@@ -5,6 +5,11 @@ import type { Categoria, CategoriaInput,
               MovimientoInventario }                           from '../entities/Catalogo';
 import type { AppConfig, LicenseStatus, CierreCaja }          from '../entities/Config';
 import type { CatalogoProducto, CatalogoProductoInput }        from '../entities/CatalogoProducto';
+import type { Cliente, ClienteInput, ClienteUpdate }            from '../entities/Cliente';
+import type { AperturaCaja, AperturaCajaInput,
+              VentaSuspendida, VentaSuspendidaInput,
+              BitacoraCajaEntry }                              from '../entities/CajaSesion';
+
 
 export interface IPCChannels {
   // Productos
@@ -48,6 +53,7 @@ export interface IPCChannels {
   'system:checkLicense':       { args: [];                                            return: LicenseStatus };
   'system:getHwid':            { args: [];                                            return: string };
   'system:activateLicense':    { args: [key: string];                                 return: LicenseStatus };
+  'system:refreshLicense':     { args: [];                                            return: LicenseStatus };
   'system:downloadUpdate':     { args: [];                                            return: boolean };
   'system:installUpdate':      { args: [];                                            return: void };
 
@@ -62,6 +68,33 @@ export interface IPCChannels {
   // Reportes
   'reportes:cierreCaja':       { args: [fecha: string];                               return: CierreCaja };
 
+  // Clientes
+  'clientes:buscarPorCedula':  { args: [cedula: string];                             return: Cliente | null };
+  'clientes:getByCedula':      { args: [cedula: string];                             return: Cliente | null };
+  'clientes:buscar':           { args: [termino: string];                            return: Cliente[] };
+  'clientes:registrar':        { args: [data: ClienteInput];                         return: Cliente };
+  'clientes:create':           { args: [data: ClienteInput];                         return: Cliente };
+  'clientes:actualizar':       { args: [data: ClienteUpdate];                        return: Cliente };
+  'clientes:update':           { args: [data: ClienteUpdate];                        return: Cliente };
+  'clientes:getAll':           { args: [];                                           return: Cliente[] };
+  'clientes:getRecientes':     { args: [limite: number];                             return: Cliente[] };
+
   // BCV
   'bcv:getTasa':               { args: [];                                            return: { tasa: number; actualizadoEl: string } | null };
+
+  // Apertura / Sesión de Caja
+  'cajaSesion:getAperturaDelDia': { args: [fecha: string];                            return: AperturaCaja | null };
+  'cajaSesion:abrir':              { args: [data: AperturaCajaInput];                 return: AperturaCaja };
+
+  // Ventas Suspendidas
+  'ventasSuspendidas:crear':    { args: [data: VentaSuspendidaInput];                 return: VentaSuspendida };
+  'ventasSuspendidas:listar':   { args: [];                                            return: VentaSuspendida[] };
+  'ventasSuspendidas:getById':  { args: [id: number];                                  return: VentaSuspendida | null };
+  'ventasSuspendidas:eliminar': { args: [id: number];                                  return: boolean };
+  'ventasSuspendidas:recuperar': { args: [id: number];                                 return: VentaSuspendida };
+  'ventasSuspendidas:finalizar': { args: [id: number];                                 return: boolean };
+
+  // Bitácora de Caja
+  'bitacoraCaja:listar':        { args: [fecha: string];                              return: BitacoraCajaEntry[] };
+
 }

@@ -76,6 +76,7 @@ export class VentaService {
         descuento:   payload.descuento ?? 0,
         metodo_pago: payload.metodo_pago,
         cajero_id:   null,
+        cliente_id:  payload.cliente_id ?? null,
         items:       payload.items,
       });
 
@@ -86,7 +87,7 @@ export class VentaService {
         const producto = this.productos.findById(item.producto_id)!;
 
         // Insertar item de venta
-        (this.ventas as any).insertItem(venta.id, item);
+        this.ventas.insertItem(venta.id, item);
 
         // Descontar stock
         const stockNuevo = producto.stock - item.cantidad;

@@ -1,6 +1,6 @@
 {
   "name": "@pos/electron",
-  "version": "1.0.0",
+  "version": "1.0.21",
   "private": true,
   "main": "dist/main/index.js",
   "scripts": {

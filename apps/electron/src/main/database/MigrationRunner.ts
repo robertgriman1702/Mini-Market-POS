@@ -168,6 +168,71 @@ const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_ventas_cliente ON ventas(cliente_id);
     `,
   },
+  {
+    version: 7,
+    description: 'Caja: apertura de caja, ventas suspendidas y bitácora',
+    sql: `
+      -- Apertura de Caja: una por jornada. Bloquea el acceso al POS hasta
+      -- que exista una apertura vigente para la fecha actual.
+      CREATE TABLE IF NOT EXISTS aperturas_caja (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        fondo_inicial INTEGER NOT NULL DEFAULT 0 CHECK (fondo_inicial >= 0),
+        observaciones TEXT,
+        usuario       TEXT    NOT NULL,
+        fecha         TEXT    NOT NULL,
+        created_at    TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_aperturas_fecha ON aperturas_caja(fecha);
+
+      -- Ventas Suspendidas: snapshot del carrito en curso. NO descuenta stock
+      -- ni genera movimientos de inventario — eso ocurre solo cuando la venta
+      -- se finaliza de verdad a través de ventas:crear. items se guarda como
+      -- TEXT (JSON serializado) porque SQLite no tiene tipo de array nativo.
+      CREATE TABLE IF NOT EXISTS ventas_suspendidas (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        cliente_id    INTEGER REFERENCES clientes(id) ON DELETE SET NULL,
+        items         TEXT    NOT NULL,
+        descuento     INTEGER NOT NULL DEFAULT 0 CHECK (descuento >= 0),
+        observaciones TEXT,
+        estado        TEXT    NOT NULL DEFAULT 'suspendida'
+          CHECK (estado IN ('suspendida','recuperada','finalizada','eliminada')),
+        usuario       TEXT    NOT NULL,
+        created_at    TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+        updated_at    TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_ventas_susp_estado  ON ventas_suspendidas(estado);
+      CREATE INDEX IF NOT EXISTS idx_ventas_susp_cliente ON ventas_suspendidas(cliente_id);
+      CREATE INDEX IF NOT EXISTS idx_ventas_susp_fecha   ON ventas_suspendidas(created_at);
+
+      -- Trigger para updated_at
+      CREATE TRIGGER IF NOT EXISTS trg_ventas_susp_updated
+        AFTER UPDATE ON ventas_suspendidas FOR EACH ROW
+        BEGIN
+          UPDATE ventas_suspendidas SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+           WHERE id = OLD.id;
+        END;
+
+      -- Bitácora de Caja: registro inmutable de auditoría. Nunca se edita
+      -- ni se borra — mismo patrón que movimientos_inventario.
+      CREATE TABLE IF NOT EXISTS bitacora_caja (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        accion        TEXT NOT NULL
+          CHECK (accion IN ('apertura','cierre','venta_realizada','venta_suspendida',
+                             'venta_recuperada','venta_eliminada','venta_anulada','diferencia_caja')),
+        detalles      TEXT,
+        usuario       TEXT NOT NULL,
+        referencia_id INTEGER,
+        created_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_bitacora_fecha  ON bitacora_caja(created_at);
+      CREATE INDEX IF NOT EXISTS idx_bitacora_accion ON bitacora_caja(accion);
+
+      ANALYZE;
+    `,
+  },
 ];
 
 export class MigrationRunner {

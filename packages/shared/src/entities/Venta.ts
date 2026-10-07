@@ -15,6 +15,7 @@ export interface Venta {
   metodo_pago: MetodoPago;
   estado:      EstadoVenta;
   cajero_id:   number | null;
+  cliente_id:  number | null;
   created_at:  string;
 }
 
@@ -36,6 +37,7 @@ export interface NuevaVentaPayload {
   }>;
   metodo_pago: MetodoPago;
   descuento?:  number;
+  cliente_id?: number | null;
 }
 
 // Resultado enriquecido que se retorna al Renderer
